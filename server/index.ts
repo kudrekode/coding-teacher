@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { exercises, tracks } from '../curriculum/index';
+import { concepts, exercises, tracks } from '../curriculum/index';
 import { capabilities, frameworkReady, runExercise } from './runtime';
 const app = express();
 app.disable('x-powered-by');
@@ -29,6 +29,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, name: 'Forge' }));
 app.get('/api/curriculum', (_req, res) =>
   res.json({
     tracks,
+    concepts,
     exercises: exercises.map(({ solution: _solution, tests, ...e }) => ({
       ...e,
       tests: tests.map(({ name, hidden }) => ({ name, hidden })),
@@ -43,6 +44,20 @@ app.get('/api/runtimes', async (_req, res) =>
       'Trusted local use only. This service is bound to 127.0.0.1; subprocess isolation is not an OS sandbox.',
   }),
 );
+app.post('/api/runtimes/self-check', async (_req, res) => {
+  if (active)
+    return void res
+      .status(429)
+      .json({ error: 'The runner is busy. Wait for the current check or submission.' });
+  active = true;
+  try {
+    res.json({ capabilities: await capabilities(true), fastapi: await frameworkReady(true) });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Self-check failed' });
+  } finally {
+    active = false;
+  }
+});
 app.get('/api/exercises/:id/solution', (req, res) => {
   const e = exercises.find((e) => e.id === req.params.id);
   if (!e) return void res.status(404).json({ error: 'Exercise not found' });
@@ -57,11 +72,9 @@ let active = false;
 app.post('/api/run', async (req, res) => {
   const parsed = runSchema.safeParse(req.body);
   if (!parsed.success)
-    return void res
-      .status(400)
-      .json({
-        error: 'Provide an exerciseId, source (1–64000 characters) and action (run or submit).',
-      });
+    return void res.status(400).json({
+      error: 'Provide an exerciseId, source (1–64000 characters) and action (run or submit).',
+    });
   if (active)
     return void res
       .status(429)

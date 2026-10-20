@@ -3,11 +3,17 @@ import './python';
 import './react';
 import './native';
 import './engineering';
+import './expanded';
+import { createConcepts, validateConcepts } from './concepts';
+import { lessonNotes } from './lesson-notes';
+import { addFoundationLessons } from './foundation-lessons';
 export { exercises };
+export const concepts = createConcepts(exercises, lessonNotes);
+addFoundationLessons(concepts);
 export const tracks = [
   {
     id: 'javascript',
-    name: 'JavaScript & TypeScript',
+    name: 'JavaScript',
     short: 'JS',
     color: '#e8c863',
     description: 'From closures to resilient systems. Build the tools you use every day.',
@@ -78,23 +84,18 @@ export const tracks = [
     future: ['Lifetimes', 'Traits & generics', 'Smart pointers', 'Async fundamentals'],
   },
   {
-    id: 'swift',
-    name: 'Swift',
-    short: 'Sw',
-    color: '#ea927c',
-    description: 'Value semantics, safe models and structured concurrency.',
-    level: 'Explore the Apple ecosystem',
-    modules: ['Optionals', 'Value types', 'Actor isolation'],
-    future: [
-      'Protocols & extensions',
-      'Closures & generics',
-      'SwiftUI state & binding',
-      'View models',
-    ],
+    id: 'typescript',
+    name: 'TypeScript & Node.js',
+    short: 'TS',
+    color: '#8caeda',
+    description: 'Model valid states. Make boundaries explicit. Build reliable services.',
+    level: 'From types to backend architecture',
+    modules: ['Type foundations', 'Domain modelling', 'Reusable types', 'Backend architecture'],
+    future: ['Streams', 'Webhooks', 'Durable idempotency'],
   },
   {
     id: 'engineering',
-    name: 'Software Engineering',
+    name: 'DSA & Engineering',
     short: 'SE',
     color: '#b8a0e9',
     description: 'Connect algorithms to caches, queues and reliable backend systems.',
@@ -108,7 +109,11 @@ export const tracks = [
       'Performance profiling',
     ],
   },
-];
+].sort(
+  (a, b) =>
+    ['javascript', 'typescript', 'python', 'react', 'go', 'rust', 'engineering'].indexOf(a.id) -
+    ['javascript', 'typescript', 'python', 'react', 'go', 'rust', 'engineering'].indexOf(b.id),
+);
 export function validateCurriculum() {
   const ids = new Set<string>();
   for (const e of exercises) {
@@ -127,6 +132,7 @@ export function validateCurriculum() {
   };
   const done = new Set<string>();
   for (const e of exercises) visit(e.id, new Set(), done);
+  validateConcepts(concepts, exercises);
   return true;
 }
 validateCurriculum();

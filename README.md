@@ -1,114 +1,132 @@
-# Forge
+# Forge v2 - The Software Engineering Atlas
 
-A local-first software engineering academy for developers who want to understand, implement and debug real systems. React, TypeScript, Vite, Tailwind, Monaco, an Express loopback runner, and browser-local progress. No accounts, API keys, external grading services or editor CDN.
+A local-first learning environment for working developers: explore a connected concept map, read a technical lesson, experiment, and implement against real tests. Built incrementally on the original Forge execution system. No accounts, paid API or remote grading service.
 
-## Install and run
+## Run Forge
 
-Use Node.js 22 (22.13+ recommended) and Python 3.11+. The initial validation used Node 22.12 and Python 3.12 on Windows. Run these commands in this repository:
+From this repository in PowerShell:
 
 ```powershell
-npm ci
+npm.cmd ci
 python -m pip install -r requirements.txt
-npm run dev
+npm.cmd run dev
 ```
 
-Open **http://127.0.0.1:5174**. The execution service binds to **127.0.0.1:4318**. Both processes must run; `npm run dev` starts and stops them together. On PowerShell installations that block npm.ps1, use `npm.cmd` instead of `npm`.
+Open **http://127.0.0.1:5174**. The execution API binds to **127.0.0.1:4318**. `npm.cmd run dev` starts both services. Use `npm` instead of `npm.cmd` on systems where appropriate.
 
-An optional Python virtual environment keeps dependencies separate:
+The dependencies and Windows Go/Rust toolchains are already installed on this machine. Node 22.13+ is recommended; this delivery also runs on the existing Node 22.12.0 installation. Python 3.11+ is required for Python and FastAPI exercises.
+
+To run the production bundle locally:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-$env:FORGE_PYTHON = (Resolve-Path .\.venv\Scripts\python.exe).Path
-npm run dev
+npm.cmd run build
+npm.cmd start
 ```
 
-For macOS/Linux, set `FORGE_PYTHON` to your Python executable if `python` is unavailable (for example `FORGE_PYTHON=python3 npm run dev`). Native adapters use `go`, `rustc`, and `swift` from PATH. Install their official toolchains and restart Forge; Settings shows detection, versions, dependencies and limitations.
+Open **http://127.0.0.1:4318**. Keep the repository and its Node dependencies: the runner is a local service, not a static-host-only deployment.
 
-To serve the production bundle locally:
+## Explore, learn, practise
+
+- **Explore:** React Flow maps for JavaScript, TypeScript/Node.js, Python/FastAPI, React, Go, Rust, and cross-language DSA/engineering. Pan, zoom, fit, search, filter, select concepts and use a keyboard-accessible list. Required, recommended and related connections have distinct treatments. No prerequisite locks.
+- **Learn:** problem-first concept pages with mechanisms, worked code, objectives, mistakes, debugging, practical applications and next concepts. Full lessons, shorter guides and planned topics are explicitly distinguished.
+- **Practice:** the existing locally bundled Monaco editor, independent grading fixtures, real diagnostics and persistent drafts. Run uses visible fixtures; Submit uses the complete suite. Only a passing submission records an exercise completion.
+- **Debounce:** real input/timer/cancellation/callback timeline, shared throttle comparison, playback/reset, two debugging exercises, cancel/flush/leading-trailing variants, and an actual React search component with abortable simulated I/O and stale-result protection.
+- **Settings:** theme, validated progress export/import, and executable Runtime Diagnostics. Availability requires a passing reference fixture, not merely a version command. FastAPI readiness uses an actual TestClient request.
+
+The catalog contains **135 concepts: 53 concept lessons, 34 short guides and 48 planned topics**. There are **64 executable exercise definitions**, including 17 new challenges. Planned topics have summaries and relationships but are not counted as delivered lessons. See `FORGE_V2_REPORT.md` and the generated audit for the final observed validation results.
+
+There are eight distinct demonstration scenarios/components: the four original guided models (binary search, task queue, delimiter stack, event loop), the shared debounce/throttle timing lab, union-state explorer, ownership explorer and React search demonstration. Guided diagrams are labelled illustrative models, not traces of arbitrary submitted code. The search demo uses local data and real, abortable delays; it does not claim to contact an external API.
+
+## Navigation and progress compatibility
+
+The atlas is the homepage. A lesson's map URL and per-track viewport survive the lesson/practice round trip in session storage. Concept search/filter/selection also live in the URL. Mobile starts with the accessible list and can switch to the map.
+
+Existing stable exercise IDs are retained for all 47 active original exercises. The original `forge.progress.v1` storage key and version-1 JSON schema remain compatible. Existing drafts, completions, lesson history and attempts are preserved. New concept reading entries use namespaced `concept:<id>` keys in the existing lessons record. Archived data for retired content is retained on import and load, without exposing a retired track.
+
+Concept states reflect recorded activities: Not started, Exploring, Practised and Completed. Reading and passing submissions are distinct. XP, streaks, achievements and productivity analytics are absent from the primary experience; legacy calculation helpers remain for compatibility with existing tests and data.
+
+## Windows runtimes
+
+This machine was checked as Windows x64 with Visual Studio Build Tools 2022 and its x64 C++ tools already present. No working Node/Python installation or C++ workload was reinstalled.
+
+Installed and executed:
+
+- Go **1.27.3**, using the official Windows amd64 ZIP, checked against the SHA-256 published by `go.dev/dl/?mode=json`. Installation: `%LOCALAPPDATA%\Programs\ForgeToolchains\go`. GOROOT is that directory; GOPATH is `%USERPROFILE%\go`.
+- Rust **1.99.1**, Cargo **1.99.1**, installed through the official rustup installer, stable `x86_64-pc-windows-msvc`. Rustup home: `%USERPROFILE%\.rustup`; proxies: `%USERPROFILE%\.cargo\bin`.
+
+Both bin directories were added to the user PATH. Existing terminals do not automatically inherit PATH updates. Forge also discovers these local locations directly, as well as the standard `C:\Program Files\Go` installation.
+
+Optional explicit executable configuration:
 
 ```powershell
-npm run build
-npm start
+$env:FORGE_GO = "$env:LOCALAPPDATA\Programs\ForgeToolchains\go\bin\go.exe"
+$env:FORGE_RUST = "$env:USERPROFILE\.cargo\bin\rustc.exe"
+$env:FORGE_PYTHON = "C:\path\to\.venv\Scripts\python.exe"
+npm.cmd run dev
 ```
 
-Then open **http://127.0.0.1:4318**. Production start still requires the repository and Node dependencies because code execution is local. It is not a static-only deployment.
+Verify independently:
 
-With production running in another terminal, `npm run test:production` checks all seven navigation routes, light theme, Monaco, a real submission, and reload persistence against the built application.
+```powershell
+& "$env:LOCALAPPDATA\Programs\ForgeToolchains\go\bin\go.exe" version
+& "$env:LOCALAPPDATA\Programs\ForgeToolchains\go\bin\go.exe" env GOROOT GOPATH
+& "$env:USERPROFILE\.cargo\bin\rustc.exe" --version
+& "$env:USERPROFILE\.cargo\bin\cargo.exe" --version
+& "$env:USERPROFILE\.cargo\bin\rustup.exe" show
+```
 
-## What works
+If Go is detected but the first test self-check times out, a cold standard-library build cache may be responsible. Run a small `go test` normally once, then use Settings > Run self-check. Native runtime deadlines were not extended to hide cold-start failures. Diagnostics distinguish detection from successful execution.
 
-- Seven learning paths, searchable and filterable practice, project challenges, and a dashboard that recommends unfinished work.
-- Lessons, examples, objectives, hints, prerequisite links, complexity discussions and post-completion reference solutions.
-- Monaco with bundled language workers, syntax highlighting, JS/TS formatting, editable implementations and read-only project context files. Lesson and editor panes can be resized.
-- **Run** executes visible tests. **Submit** executes the full independent fixture suite. Only a successful Submit records completion and first-solve XP. Compiler errors, runtime exceptions, timeouts, assertion differences, console output and measured elapsed time are displayed.
-- Browser-local drafts, completions, lesson reads, attempt history, XP, streaks, achievements and topic coverage estimates. Validated JSON export/import includes drafts and history. Navigation and reload preserve code.
-- Focused practice filters by language, difficulty, topic and mode. Timed interviews have a countdown and session-specific test-outcome summaries. No subjective AI assessment.
-- Four guided visualisations: binary search, bounded task scheduling, a delimiter stack and the JavaScript event loop. Each supports next/previous, play/pause, speed and reset. These are conceptual step models, **not traces of arbitrary submitted code**.
-- Responsive dark and light themes, labelled controls, visible focus, reduced-motion handling, and keyboard shortcuts. With the editor focused: Ctrl/Cmd+Enter runs, Ctrl/Cmd+Shift+Enter submits. Ctrl/Cmd+K opens Practice.
-
-## Curriculum and execution status
-
-| Track                | Definitions | Verified on this machine | Execution                                                                                   |
-| -------------------- | ----------: | -----------------------: | ------------------------------------------------------------------------------------------- |
-| JavaScript           |          11 |                       11 | Separate Node process and VM context; deterministic virtual timers                          |
-| TypeScript           |           5 |                        5 | Actual strict TypeScript compiler, positive/negative type fixtures, then runtime assertions |
-| Python / FastAPI     |          12 |                       12 | Local CPython, including 2 real FastAPI/TestClient exercises                                |
-| React                |           6 |                        6 | Actual React render/effect/event tests in jsdom in a child process                          |
-| Go                   |           5 |                        0 | Local `go test` adapter; compiler missing here                                              |
-| Rust                 |           5 |                        0 | Local `rustc` compile/run adapter; compiler missing here                                    |
-| Swift                |           3 |                        0 | Local Swift interpreter/compiler adapter; toolchain missing here                            |
-| Software engineering |           3 |                        3 | JavaScript: sliding-window limiting, graph dependencies and request deduplication           |
-| **Total**            |      **50** |                   **37** | **13 native definitions await toolchain validation**                                        |
-
-For all **37 verified exercises**, the reference passed every fixture and the starter failed at least one. The 13 native reference solutions are structurally validated and have fixtures, but **have not been compiled or executed on this machine**. Their execution controls are disabled when the toolchain is unavailable. Future roadmap topics are explicitly distinguished from playable exercises.
-
-## Safety model and limits
-
-**Run trusted code on your own machine only.** This is not an OS security sandbox or a multi-user code execution platform. Python and native programs inherit your filesystem/network permissions. Node VM contexts are a convenience isolation mechanism, not a security boundary. Do not paste hostile code or expose the runner through a tunnel, reverse proxy or public interface.
-
-The service binds only to loopback, validates Host/Origin, accepts known exercise IDs rather than arbitrary fixture definitions, limits request and output sizes, serialises API execution, creates disposable working directories and enforces process deadlines. JS workers have a 128 MB V8 heap limit, 1.2 s synchronous VM limits, 1.5 s asynchronous test limits, a 5 s execution deadline and a separate 30 s startup allowance. Python has a 15 s process deadline including imports. Native compile/test commands have 15 s deadlines; Rust executables have 3 s. Duration includes startup/compilation; it is not a reliable algorithm benchmark.
-
-There is no container-level filesystem or network isolation, no hard Python/native memory quota, and no guaranteed descendant-process containment. Local fixtures can be inspected. Reference endpoints are not a security boundary: UI unlocking is a learning convention.
-
-Other intentional limits:
-
-- Projects have one editable source file and optional read-only context files; arbitrary multi-file imports are not supported.
-- React tests run in jsdom, with events and effects, rather than an interactive visual component preview. TSX is transpiled; React exercises do not claim full semantic TypeScript checking. The separate TypeScript exercises do perform semantic compiler checks.
-- JS/TS submissions use standard language APIs, virtual timers, and provided test helpers. Arbitrary Node imports, real HTTP servers and package installation inside exercises are not supported.
-- Native samples are standard-library exercises. Go/Rust/Swift compiler-error and successful-grading journeys remain unverified until the toolchains are installed.
-- Python uses local CPython, not Pyodide. FastAPI requests use actual ASGI TestClient HTTP request/response handling, without starting an external web server.
-- Progress is per browser origin. Development (5174) and production (4318) have separate local storage; export/import moves data between them. Clearing browser data removes progress. There is no cloud sync or authentication.
-- Streaks use local calendar days and successful first completions. Mastery displays exercise coverage, not a psychometric estimate. Repeat solves do not farm XP.
+For another Windows machine use the [official Go downloads](https://go.dev/dl/), [official rustup installer](https://rustup.rs/) and the [Rust MSVC prerequisites](https://rust-lang.org/tools/install/). Install the x64 C++ build tools and Windows SDK if rustc reports a missing linker. Compiler versions alone are not proof that linking or grading works.
 
 ## Verification
 
 ```powershell
-npm run typecheck
-npm run lint
-npm test
-npm run validate:curriculum
-npx playwright install chromium
-npm run test:e2e
-npm run build
-npm audit
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd test
+npm.cmd run validate:curriculum
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+npm.cmd run build
 ```
 
-`validate:curriculum` executes every available reference **and starter**, and reports unavailable toolchains separately. Vitest covers schemas, prerequisite graphs, registration, grading, real compiler diagnostics, exceptions, loop interruption, persistence, import validation, runtime capability reporting, React events and FastAPI requests. Playwright uses real editor pasting and actual API submissions for the core learning journeys, plus draft retention, reset, filters, mobile navigation, export/import, countdown expiry and origin protection.
+With the production service running separately:
 
-See [COMPLETION.md](COMPLETION.md) for the final observed results and unverified scope.
+```powershell
+npm.cmd run test:production
+```
 
-## Architecture and extension
+The curriculum audit executes every available reference and starter. A reference must pass all independent fixtures and its starter must fail at least one. Unavailable toolchains are reported with their actual self-check diagnostics. Go/Rust use real compilers. TypeScript uses the actual strict compiler with positive/negative fixtures, and maps diagnostics to visible source or named fixture lines.
+
+Vitest covers schemas, graph cycles/links/layout, persistence compatibility, activity semantics, all original language regressions, native compiler errors, the Rust move checker, panics and timeouts. Playwright covers concept selection, the timing lab, lessons, Monaco submissions, return-to-map context, reload persistence, tracks, search, themes, mobile overflow and native browser journeys. Screenshots and the execution audit are written under ignored `artifacts/`.
+
+## Architecture
 
 ```text
-curriculum/       Zod schema, exercise definitions, roadmaps and graph validation
-server/           Loopback API, adapters, compiler integration, child-process runner
-src/              React screens, lazy Monaco editor, persistence, visualisation engine
-tests/            Vitest unit/runtime tests and Playwright browser journeys
+curriculum/concepts.ts            Concept schema, catalog, associations and validation
+curriculum/lesson-notes.ts        Problem/mechanism/application editorial content
+curriculum/foundation-lessons.ts  Standalone foundational concept lessons
+curriculum/layout.ts              Deterministic prerequisite layout
+curriculum/expanded.ts            New independently graded exercises
+curriculum/exercises.ts           Original stable exercise registry
+src/Atlas.tsx                     Map, inspector, list and navigation context
+src/ConceptLesson.tsx             Interactive textbook surface
+src/DebounceLab.tsx               Timer lab and real React search demonstration
+src/atlas-context.ts              Shared app context and concept activity states
+src/App.tsx                      Preserved practice/editor, settings and application shell
+server/runtime.ts                Real runtimes, discovery, self-checks and diagnostics
+server/index.ts                  Loopback execution API and production SPA serving
 ```
 
-To add an exercise, use the `register([...])` structure in a curriculum module and import the module from `curriculum/index.ts`. Supply every schema field: stable ID, language/track/topic, prerequisites, objectives, explanation/problem, meaningful starter, reference, examples, constraints, hints, common mistakes, complexity and at least two named fixtures. `hidden:false` fixtures are used by Run; Submit includes all fixtures. Native fixture bodies are compiler-language code, Python fixtures use assertions, and JS/TS fixtures use `assert` and `equal`. JavaScript timer exercises use the injected deterministic `clock.tick(ms)` helper. React fixtures can use `mount`, `rerender`, `click`, `event`, `flush` and `resolvePromise`.
+React Flow (`@xyflow/react`) is the only new UI dependency. Existing React, Router, Tailwind, Lucide and Monaco remain in use. Layout is deterministic; an additional layout engine or animation package was unnecessary. Integration follows the [official React Flow documentation](https://reactflow.dev/learn/customization/custom-nodes).
 
-Always run the full curriculum validator: a reference must pass and its starter must fail. Add prerequisites only to existing IDs; cycles and duplicates fail validation. A new unavailable-language exercise is **not verified** merely because its schema passes.
+## Trusted local execution and limits
 
-To add a runtime, extend `Language`/`languages` in `curriculum/schema.ts`, provide truthful detection/capability metadata and an adapter in `server/runtime.ts`, then add correct, incorrect, compiler-error and timeout tests. Commands must be argument arrays with `shell:false`; never interpolate submissions into shell commands. Keep grading fixtures server-owned and preserve deadlines, temporary-directory cleanup and diagnostic reporting. Do not mark a language runnable until real execution has been demonstrated.
+Run only trusted code on your own machine. This is not an OS sandbox or a public multi-user executor. Python/native programs inherit your filesystem/network permissions; Node VM contexts are not a security boundary.
+
+The service retains loopback binding, Host/Origin checks, server-owned fixtures, source/output caps, serial API submissions, disposable working directories, the JS heap bound and existing execution deadlines. JS uses virtual timer fixtures and separate worker processes. Python has a 15-second deadline including imports. Native compile/test commands have 15 seconds; Rust executables have 3 seconds. Windows termination also requests descendant termination, and temporary-directory cleanup handles transient file locks within a checked Forge temp boundary. OS-level memory/network isolation and escape-proof descendant containment are not claimed.
+
+Projects still use one editable file plus optional read-only context. React tests mount actual components in jsdom; TSX is transpiled and does not claim the semantic checks of the separate TypeScript exercises. Browser progress is origin-specific: development and production require export/import to move progress. Only Chromium has been exercised here. Some explanatory snippets assume surrounding imports or a function body; they are teaching examples, not a general multi-file project system.
+
+The 90-120 exercise expansion remains future work. The current delivery prioritises validated execution over the larger numerical target. Historical `COMPLETION.md` describes the previous delivery and is not the v2 acceptance report.

@@ -3,6 +3,9 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { exercises } from '../curriculum/index';
 import ts from 'typescript';
 import type { Capability, Exercise, Language, RunResult, TestResult } from '../curriculum/schema';
 
@@ -25,6 +28,16 @@ export function command(
       err = '',
       timedOut = false,
       done = false;
+    const stop = () => {
+      if (process.platform === 'win32' && proc.pid) {
+        // Go tests spawn a test binary. Stop descendants before releasing the temp directory.
+        const killer = spawn('taskkill.exe', ['/PID', String(proc.pid), '/T', '/F'], {
+          windowsHide: true,
+          shell: false,
+        });
+        killer.on('error', () => proc.kill('SIGKILL'));
+      } else proc.kill('SIGKILL');
+    };
     const finish = (code: number) => {
       if (done) return;
       done = true;
@@ -33,13 +46,13 @@ export function command(
     };
     const timer = setTimeout(() => {
       timedOut = true;
-      proc.kill('SIGKILL');
-      finish(-1);
+      stop();
+      setTimeout(() => finish(-1), 1000).unref();
     }, timeout);
     proc.stdout.on('data', (d) => {
       out += d.toString();
       if (out.length > 128000) {
-        proc.kill('SIGKILL');
+        stop();
         err = 'Output limit exceeded';
         finish(-1);
       }
@@ -47,7 +60,7 @@ export function command(
     proc.stderr.on('data', (d) => {
       err += d.toString();
       if (err.length > 128000) {
-        proc.kill('SIGKILL');
+        stop();
         err = 'Diagnostic output limit exceeded';
         finish(-1);
       }
@@ -60,6 +73,19 @@ export function command(
     if (input) proc.stdin.end(input);
     else proc.stdin.end();
   });
+}
+function discover(tool: 'go' | 'rustc') {
+  const override = process.env[tool === 'go' ? 'FORGE_GO' : 'FORGE_RUST'];
+  if (override) return override;
+  if (process.platform !== 'win32') return tool;
+  const candidates =
+    tool === 'go'
+      ? [
+          path.join(process.env.LOCALAPPDATA ?? '', 'Programs/ForgeToolchains/go/bin/go.exe'),
+          'C:/Program Files/Go/bin/go.exe',
+        ]
+      : [path.join(homedir(), '.cargo/bin/rustc.exe')];
+  return candidates.find((p) => existsSync(p)) ?? tool;
 }
 const specs: Record<Language, { cmd: string; args: string[]; install: string }> = {
   javascript: {
@@ -75,37 +101,52 @@ const specs: Record<Language, { cmd: string; args: string[]; install: string }> 
     install: 'Install Python 3.11+, then python -m pip install -r requirements.txt',
   },
   go: {
-    cmd: 'go',
+    cmd: discover('go'),
     args: ['version'],
     install: 'Install Go from https://go.dev/dl/ and restart Forge.',
   },
   rust: {
-    cmd: 'rustc',
+    cmd: discover('rustc'),
     args: ['--version'],
     install: 'Install rustup from https://rustup.rs/ and restart Forge.',
   },
-  swift: {
-    cmd: 'swift',
-    args: ['--version'],
-    install: 'Install a Swift toolchain from https://www.swift.org/install/ and restart Forge.',
-  },
 };
 let cached: Capability[] | undefined;
+let checking: Promise<Capability[]> | undefined;
 export async function capabilities(refresh = false) {
+  if (checking) return checking;
   if (cached && !refresh) return cached;
-  cached = await Promise.all(
-    (Object.keys(specs) as Language[]).map(async (language) => {
+  specs.go.cmd = discover('go');
+  specs.rust.cmd = discover('rustc');
+  checking = (async () => {
+    const result: Capability[] = [];
+    for (const language of Object.keys(specs) as Language[]) {
       const s = specs[language],
         r = ['javascript', 'typescript', 'react'].includes(language)
           ? { code: 0, out: process.version, err: '' }
           : await command(s.cmd, s.args, undefined, 5000);
-      return {
+      const sample = exercises.find((e) => e.language === language)!;
+      const check =
+        r.code === 0
+          ? await executeExercise(
+              { ...sample, tests: sample.tests.slice(0, 1) },
+              sample.solution,
+              true,
+            )
+          : undefined;
+      const available = r.code === 0 && check?.passed === true;
+      result.push({
         language,
-        available: r.code === 0,
+        available,
         compilation: language !== 'javascript' && language !== 'python',
-        execution: r.code === 0,
-        tests: r.code === 0,
-        version: r.code === 0 ? (r.out || r.err).trim().split('\n')[0] : 'Not installed',
+        execution: available,
+        tests: available,
+        version:
+          r.code === 0
+            ? language === 'typescript'
+              ? `TypeScript ${ts.version} · Node ${process.version}`
+              : (r.out || r.err).trim().split('\n')[0]
+            : 'Not installed',
         dependencies:
           language === 'python'
             ? ['Python 3.11+', 'FastAPI + httpx for API exercises']
@@ -113,30 +154,44 @@ export async function capabilities(refresh = false) {
               ? ['Go toolchain (go test)']
               : language === 'rust'
                 ? ['Rust toolchain (rustc) and native linker']
-                : language === 'swift'
-                  ? ['Swift toolchain']
-                  : [
-                      'Node.js 22+',
-                      ...(language === 'typescript' ? ['TypeScript compiler'] : []),
-                      ...(language === 'react' ? ['React', 'React DOM', 'jsdom'] : []),
-                    ],
+                : [
+                    'Node.js 22+',
+                    ...(language === 'typescript' ? ['TypeScript compiler'] : []),
+                    ...(language === 'react' ? ['React', 'React DOM', 'jsdom'] : []),
+                  ],
         limitations:
           'Trusted local code only. Child-process deadlines and output limits are enforced; this is not an OS security sandbox. Native code and Python inherit the local user permissions.',
         install: s.install,
-      };
-    }),
-  );
-  return cached;
+        diagnostics: available
+          ? 'Reference fixture compiled/executed and passed.'
+          : r.code !== 0
+            ? r.err || r.out
+            : [
+                ...(check?.diagnostics ?? []),
+                ...(check?.results.filter((t) => !t.passed).map((t) => t.error ?? t.name) ?? []),
+              ].join('\n'),
+        checkedAt: new Date().toISOString(),
+      });
+    }
+    cached = result;
+    return result;
+  })();
+  try {
+    return await checking;
+  } finally {
+    checking = undefined;
+  }
 }
 let frameworkCache: boolean | undefined;
-export async function frameworkReady() {
+export async function frameworkReady(refresh = false) {
+  if (refresh) frameworkCache = undefined;
   if (frameworkCache !== undefined) return frameworkCache;
   const result = await command(
     specs.python.cmd,
     [
       '-I',
       '-c',
-      'import importlib.util; assert all(importlib.util.find_spec(m) is not None for m in ("fastapi", "httpx"))',
+      'from fastapi import FastAPI\nfrom fastapi.testclient import TestClient\napp=FastAPI()\n@app.get("/self-check")\ndef check(): return {"ok":True}\nwith TestClient(app) as client:\n assert client.get("/self-check").json()=={"ok":True}',
     ],
     undefined,
     15000,
@@ -145,11 +200,33 @@ export async function frameworkReady() {
   return result.code === 0;
 }
 
-function formatDiagnostics(diags: readonly ts.Diagnostic[]) {
+function formatDiagnostics(
+  diags: readonly ts.Diagnostic[],
+  source?: string,
+  tests?: Exercise['tests'],
+) {
   return diags.map((d) => {
     const pos =
       d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : undefined;
-    return `${pos ? `Line ${pos.line + 1}:${pos.character + 1} ` : ''}TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`;
+    let location = pos ? `Line ${pos.line + 1}:${pos.character + 1} ` : '';
+    if (pos && source !== undefined) {
+      const lines = source.split('\n').length;
+      if (pos.line >= 2 && pos.line < lines + 2)
+        location = `solution.ts Line ${pos.line - 1}:${pos.character + 1} `;
+      else {
+        let offset = lines + 3;
+        const fixture = tests?.find((t) => {
+          const end = offset + t.code.split('\n').length;
+          if (pos.line >= offset && pos.line < end) return true;
+          offset = end + 2;
+          return false;
+        });
+        location = fixture
+          ? `Fixture “${fixture.name}” Line ${pos.line - offset + 1}:${pos.character + 1} `
+          : 'Type-check harness: ';
+      }
+    }
+    return `${location}TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`;
   });
 }
 export async function runExercise(
@@ -157,6 +234,32 @@ export async function runExercise(
   source: string,
   submit = false,
 ): Promise<RunResult> {
+  const cap = (await capabilities()).find((c) => c.language === ex.language)!;
+  if (!cap.available)
+    return {
+      exerciseId: ex.id,
+      passed: false,
+      results: [],
+      output: [],
+      diagnostics: [cap.install, cap.diagnostics ?? 'Execution self-check failed.'],
+      duration: 0,
+      unavailable: true,
+    };
+  if (ex.framework === 'fastapi' && !(await frameworkReady()))
+    return {
+      exerciseId: ex.id,
+      passed: false,
+      results: [],
+      output: [],
+      diagnostics: [
+        'FastAPI self-check failed. Run python -m pip install -r requirements.txt, then run the Settings self-check.',
+      ],
+      duration: 0,
+      unavailable: true,
+    };
+  return executeExercise(ex, source, submit);
+}
+async function executeExercise(ex: Exercise, source: string, submit = false): Promise<RunResult> {
   const start = performance.now();
   const tests = submit ? ex.tests : ex.tests.filter((t) => !t.hidden);
   const base = {
@@ -172,13 +275,6 @@ export async function runExercise(
     ...extra,
     duration: Math.round(performance.now() - start),
   });
-  const cap = (await capabilities()).find((c) => c.language === ex.language)!;
-  if (!cap.available) return finish({ unavailable: true, diagnostics: [cap.install] });
-  if (ex.framework === 'fastapi' && !(await frameworkReady()))
-    return finish({
-      unavailable: true,
-      diagnostics: ['FastAPI dependencies missing. Run: python -m pip install -r requirements.txt'],
-    });
   const dir = await mkdtemp(path.join(tmpdir(), 'forge-'));
   try {
     if (['javascript', 'typescript', 'react'].includes(ex.language)) {
@@ -203,7 +299,7 @@ export async function runExercise(
           skipLibCheck: true,
         };
         const program = ts.createProgram([filename], options),
-          diagnostics = formatDiagnostics(ts.getPreEmitDiagnostics(program));
+          diagnostics = formatDiagnostics(ts.getPreEmitDiagnostics(program), source, tests);
         if (diagnostics.length) return finish({ diagnostics });
         code = ts.transpileModule(source, {
           compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -334,15 +430,18 @@ export async function runExercise(
           path.join(dir, 'solution_test.go'),
           `package main\n${imports}\nfunc TestAcceptance(t *testing.T){${t.code}}`,
         );
-        compiled = await command('go', ['test', 'solution.go', 'solution_test.go'], dir, 15000);
+        compiled = await command(
+          specs.go.cmd,
+          ['test', 'solution.go', 'solution_test.go'],
+          dir,
+          15000,
+        );
       } else if (ex.language === 'rust') {
         await writeFile(path.join(dir, 'solution.rs'), source + `\nfn main(){${t.code}}`);
-        compiled = await command('rustc', ['solution.rs', '-o', exe], dir, 15000);
+        compiled = await command(specs.rust.cmd, ['solution.rs', '-o', exe], dir, 15000);
         if (!compiled.code) compiled = await command(exe, [], dir, 3000);
-      } else {
-        await writeFile(path.join(dir, 'solution.swift'), source + `\n${t.code}`);
-        compiled = await command('swift', ['solution.swift'], dir, 15000);
-      }
+      } else throw Error(`Unsupported native language: ${ex.language}`);
+      if (compiled.out.trim()) base.output.push(...compiled.out.trim().split('\n').slice(0, 100));
       results.push({
         name: t.name,
         hidden: t.hidden,
@@ -357,6 +456,28 @@ export async function runExercise(
     }
     return finish({ results, passed: results.every((r) => r.passed) });
   } finally {
-    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    await cleanupDirectory(dir);
+  }
+}
+
+async function cleanupDirectory(dir: string) {
+  // Only remove the mkdtemp directory owned by this invocation, never a submitted path.
+  if (
+    path.dirname(path.resolve(dir)) !== path.resolve(tmpdir()) ||
+    !path.basename(dir).startsWith('forge-')
+  )
+    throw Error('Refusing cleanup outside the Forge temporary directory boundary');
+  try {
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
+  } catch (error) {
+    if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? ''))
+      throw error;
+    // Windows scanners can hold a recently executed file briefly. Preserve the grading result.
+    console.warn(`Forge temporary cleanup delayed: ${dir}`);
+    setTimeout(() => {
+      void rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(
+        () => {},
+      );
+    }, 2000).unref();
   }
 }

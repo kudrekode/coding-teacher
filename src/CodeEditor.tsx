@@ -6,7 +6,6 @@ import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.
 import 'monaco-editor/esm/vs/basic-languages/python/python.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/go/go.contribution.js';
 import 'monaco-editor/esm/vs/basic-languages/rust/rust.contribution.js';
-import 'monaco-editor/esm/vs/basic-languages/swift/swift.contribution.js';
 import 'monaco-editor/esm/vs/language/typescript/monaco.contribution.js';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import TSWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';

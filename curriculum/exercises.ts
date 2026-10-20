@@ -30,12 +30,11 @@ function make(s: Spec): Exercise {
     react: 'tsx',
     go: 'go',
     rust: 'rs',
-    swift: 'swift',
   };
   return exerciseSchema.parse({
     ...s,
     language,
-    track: s.track ?? (['javascript', 'typescript'].includes(language) ? 'javascript' : language),
+    track: s.track ?? language,
     difficulty: s.difficulty ?? 'Intermediate',
     mode: s.mode ?? 'Implement',
     prerequisites: s.prerequisites ?? [],

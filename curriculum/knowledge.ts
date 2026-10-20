@@ -193,12 +193,6 @@ const defaults: Record<string, Check> = {
     explanation:
       'Correct. Passing by value moves ownership. Borrow a slice when you only need to inspect it.',
   },
-  swift: {
-    question: 'Can external code synchronously mutate an actor-isolated property?',
-    answer: false,
-    explanation:
-      'Correct. Actor isolation requires appropriate asynchronous access across the isolation boundary.',
-  },
 };
 export function knowledgeFor(exercise: Pick<PublicExercise, 'id' | 'language'>): Check {
   return checks[exercise.id] ?? defaults[exercise.language];

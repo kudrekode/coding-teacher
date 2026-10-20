@@ -24,7 +24,7 @@ async function edit(page: Page, source: string) {
 test('JavaScript solve, genuine failures, submit, progress survives reload, reset restores starter', async ({
   page,
 }) => {
-  await page.goto('/paths/javascript');
+  await page.goto('/learn/js-debounce');
   await page.getByRole('link', { name: /Debounce a search input/ }).click();
   await page.getByRole('button', { name: 'Run tests', exact: true }).click();
   await expect(page.getByText('Needs another look')).toBeVisible();
@@ -65,7 +65,7 @@ for (const id of ['py-window', 'react-stale', 'py-fastapi-users'])
 test('navigation preserves drafts; unavailable compilers are explicit', async ({ page }) => {
   await page.goto('/exercise/js-debounce');
   await edit(page, '// draft survives navigation\nfunction debounce() {}');
-  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('link', { name: 'Explore', exact: true }).click();
   await page.goto('/exercise/js-debounce');
   await expect(page.locator('.monaco-editor')).toContainText('draft survives navigation');
   await page.goto('/exercise/go-pointer');
@@ -80,6 +80,10 @@ test('practice filters, timed session and visualisation controls work', async ({
   await page.goto('/practice');
   await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('python');
   await page.getByRole('combobox', { name: 'Exercise type', exact: true }).selectOption('Debug');
+  await expect(page.locator('.exercise-row')).toHaveCount(2);
+  await page
+    .getByLabel('Search exercises')
+    .fill(exercises.find((e) => e.id === 'py-defaults')!.title);
   await expect(page.locator('.exercise-row')).toHaveCount(1);
   await page.getByLabel('Timed interview').check();
   await page.getByRole('button', { name: /Start 1 question interview/ }).click();
@@ -106,16 +110,16 @@ test('settings export and validated import round trip', async ({ page }) => {
   await page.reload();
   await expect(page.getByLabel('Display name')).toHaveValue('Test Engineer');
 });
-test('dashboard is usable on a narrow screen', async ({ page }) => {
+test('atlas is usable on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Keep the fire going/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Follow your curiosity/ })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
   await page.getByRole('button', { name: 'Toggle navigation' }).click();
-  await page.getByRole('link', { name: 'Learning paths', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Build a stronger foundation.' })).toBeVisible();
+  await page.getByRole('link', { name: 'Explore', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Follow your curiosity/ })).toBeVisible();
 });
 test('interview expiry records a final session and preserves the draft', async ({ page }) => {
   await page.clock.install();
@@ -145,13 +149,29 @@ test('capture desktop and mobile layouts with no browser errors', async ({ page 
   page.on('pageerror', (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Keep the fire going/ })).toBeVisible();
-  await page.screenshot({ path: 'artifacts/forge-dashboard.png', fullPage: true });
+  await expect(page.getByRole('heading', { name: /Follow your curiosity/ })).toBeVisible();
+  await expect(page.locator('.knowledge-node').first()).toBeVisible();
+  await page.screenshot({
+    path: 'artifacts/v2-atlas-desktop.png',
+    fullPage: true,
+    animations: 'disabled',
+    timeout: 30000,
+  });
   await page.goto('/exercise/js-debounce');
   await expect(page.locator('.monaco-editor')).toBeVisible();
-  await page.screenshot({ path: 'artifacts/forge-workspace.png', fullPage: true });
+  await page.screenshot({
+    path: 'artifacts/v2-workspace.png',
+    fullPage: true,
+    animations: 'disabled',
+    timeout: 30000,
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.screenshot({ path: 'artifacts/forge-mobile.png', fullPage: true });
+  await page.screenshot({
+    path: 'artifacts/v2-atlas-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+    timeout: 30000,
+  });
   expect(errors).toEqual([]);
 });

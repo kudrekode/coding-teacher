@@ -5,7 +5,7 @@ const exercise = (id: string) => exercises.find((e) => e.id === id)!;
 describe('real runtime adapters', () => {
   it('reports all runtimes and their real availability', async () => {
     const caps = await capabilities();
-    expect(caps).toHaveLength(7);
+    expect(caps).toHaveLength(6);
     expect(caps.find((c) => c.language === 'typescript')?.available).toBe(true);
     for (const c of caps) expect(c.execution).toBe(c.available);
   });
@@ -60,7 +60,7 @@ describe('real runtime adapters', () => {
   });
   it('returns honest unavailable states or executes native compilers', async () => {
     const caps = await capabilities();
-    for (const id of ['go-pointer', 'rust-borrow', 'swift-optionals']) {
+    for (const id of ['go-pointer', 'rust-borrow']) {
       const e = exercise(id),
         result = await runExercise(e, e.solution, true);
       if (!caps.find((c) => c.language === e.language)?.available) {
@@ -68,5 +68,51 @@ describe('real runtime adapters', () => {
         expect(result.passed).toBe(false);
       } else expect(result.passed, JSON.stringify(result)).toBe(true);
     }
+  });
+  it('maps TypeScript diagnostics to visible source lines', async () => {
+    const result = await runExercise(
+      exercise('ts-identity'),
+      'function identity<T>(value:T):T {\n  const broken: number = "text";\n  return value;\n}',
+      true,
+    );
+    expect(result.diagnostics.join(' ')).toMatch(/solution\.ts Line 2:.*TS2322/);
+  });
+  it('shows real native compiler diagnostics and Rust move errors', async () => {
+    const caps = await capabilities();
+    if (caps.find((c) => c.language === 'rust')?.available) {
+      const bad = await runExercise(
+        exercise('rust-mutable'),
+        'fn add_offset(values:&mut [i32],offset:i32){let s=String::from("x");let moved=s;println!("{}",s);}',
+        true,
+      );
+      expect(bad.passed).toBe(false);
+      expect(JSON.stringify(bad)).toContain('E0382');
+    }
+    if (caps.find((c) => c.language === 'go')?.available) {
+      const bad = await runExercise(
+        exercise('go-pointer'),
+        'package main\nfunc Increment(value *int){ ??? }',
+        true,
+      );
+      expect(bad.passed).toBe(false);
+      expect(JSON.stringify(bad)).toMatch(/syntax error|invalid character/);
+    }
+  });
+  it('reports native panics and interrupts a Rust infinite loop', async () => {
+    if (!(await capabilities()).find((c) => c.language === 'rust')?.available) return;
+    const panic = await runExercise(
+      exercise('rust-mutable'),
+      'fn add_offset(values:&mut [i32],offset:i32){panic!("native failure")}',
+      true,
+    );
+    expect(panic.passed).toBe(false);
+    expect(JSON.stringify(panic)).toContain('native failure');
+    const timeout = await runExercise(
+      exercise('rust-mutable'),
+      'fn add_offset(values:&mut [i32],offset:i32){loop{}}',
+      false,
+    );
+    expect(timeout.passed).toBe(false);
+    expect(JSON.stringify(timeout)).toMatch(/timed out/);
   });
 });

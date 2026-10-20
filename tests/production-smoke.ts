@@ -13,21 +13,32 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   for (const route of [
     '/',
-    '/paths',
+    '/explore/typescript',
+    '/learn/js-debounce',
     '/practice',
     '/projects',
     '/visualizations',
-    '/progress',
     '/settings',
   ]) {
     const response = await page.goto(base + route);
     expect(response?.status()).toBe(200);
     await expect(page.locator('main h1')).toBeVisible();
+    if (route === '/learn/js-debounce')
+      await page.screenshot({
+        path: 'artifacts/v2-lesson-desktop.png',
+        animations: 'disabled',
+        timeout: 30000,
+      });
   }
   await page.getByLabel('Appearance').selectOption('light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.goto(base);
-  await page.screenshot({ path: 'artifacts/forge-light.png', fullPage: true });
+  await page.screenshot({
+    path: 'artifacts/v2-production-light.png',
+    fullPage: true,
+    animations: 'disabled',
+    timeout: 30000,
+  });
   await page.goto(base + '/exercise/js-debounce');
   await expect(page.locator('.monaco-editor')).toBeVisible();
   await page.getByRole('button', { name: 'Run tests', exact: true }).click();
@@ -43,7 +54,7 @@ try {
   await expect(page.locator('.exercise-header .success')).toBeVisible();
   expect(errors).toEqual([]);
   console.log(
-    'PASS production: seven SPA routes, light theme, Monaco, real submission, reload persistence, no browser errors',
+    'PASS production: atlas/lesson/practice SPA routes, light theme, Monaco, real submission, reload persistence, no browser errors',
   );
 } finally {
   await browser.close();

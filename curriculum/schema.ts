@@ -1,13 +1,5 @@
 import { z } from 'zod';
-export const languages = [
-  'javascript',
-  'typescript',
-  'python',
-  'react',
-  'go',
-  'rust',
-  'swift',
-] as const;
+export const languages = ['javascript', 'typescript', 'python', 'react', 'go', 'rust'] as const;
 export const exerciseSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
   title: z.string().min(4),
@@ -68,4 +60,6 @@ export interface Capability {
   dependencies: string[];
   limitations: string;
   install: string;
+  diagnostics?: string;
+  checkedAt?: string;
 }

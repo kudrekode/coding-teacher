@@ -14,16 +14,16 @@ Verified on 20 October 2026, on Windows with Node.js 22.12 and Python 3.12.
 
 ## Final checks
 
-| Check | Observed result |
-| --- | --- |
-| TypeScript type check | Passed |
-| ESLint | Passed |
-| Vitest | **16 passed**, 3 test files |
-| Playwright Chromium | **12 passed**; final run 53.4 seconds |
-| Curriculum reference/starter audit | **37 validated, 13 unavailable, 0 failures** |
-| Production build | Passed; dashboard JS approximately 118 kB gzip, editor loaded separately |
-| Production browser smoke | Passed: all seven navigation routes, light theme, Monaco, genuine failing starter, successful submission, reload persistence, no browser errors |
-| npm audit | **0 reported vulnerabilities** |
+| Check                              | Observed result                                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript type check              | Passed                                                                                                                                          |
+| ESLint                             | Passed                                                                                                                                          |
+| Vitest                             | **16 passed**, 3 test files                                                                                                                     |
+| Playwright Chromium                | **12 passed**; final run 53.4 seconds                                                                                                           |
+| Curriculum reference/starter audit | **37 validated, 13 unavailable, 0 failures**                                                                                                    |
+| Production build                   | Passed; dashboard JS approximately 118 kB gzip, editor loaded separately                                                                        |
+| Production browser smoke           | Passed: all seven navigation routes, light theme, Monaco, genuine failing starter, successful submission, reload persistence, no browser errors |
+| npm audit                          | **0 reported vulnerabilities**                                                                                                                  |
 
 The tests include actual runtime and compiler failures, infinite-loop interruption, prerequisite graph/schema checks, storage/import validation, unsupported toolchain states and rejection of foreign-origin execution requests. Development and production were both exercised; QA processes are stopped after verification.
 

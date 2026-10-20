@@ -1,15 +1,7 @@
-import {
-  createContext,
-  lazy,
-  Suspense,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Link,
+  Navigate,
   NavLink,
   Route,
   Routes,
@@ -33,10 +25,7 @@ import {
   Code2,
   Command,
   ExternalLink,
-  Flame,
   FolderCode,
-  GitBranch,
-  LayoutDashboard,
   Lightbulb,
   LoaderCircle,
   Menu,
@@ -49,70 +38,33 @@ import {
   Settings2,
   Target,
   Terminal,
-  Trophy,
   X,
-  Zap,
 } from 'lucide-react';
 import type { Capability, PublicExercise, RunResult } from '../curriculum/schema';
-import { getCurriculum, getRuntimes, getSolution, runCode, type Track } from './api';
+import { checkRuntimes, getCurriculum, getRuntimes, getSolution, runCode, type Track } from './api';
 import {
   emptyProgress,
   importProgress,
   loadProgress,
   recordAttempt,
   saveProgress,
-  streak,
-  xp,
   type Progress,
 } from './persistence';
 import { Visualizer } from './visualizations';
 import { knowledgeFor } from '../curriculum/knowledge';
 const Editor = lazy(() => import('./CodeEditor'));
 
-type Session = {
-  ids: string[];
-  index: number;
-  deadline: number | null;
-  startedAt: number;
-  endedAt?: number;
-  finished: boolean;
-};
-type AppContext = {
-  exercises: PublicExercise[];
-  tracks: Track[];
-  capabilities: Capability[];
-  fastapi: boolean;
-  progress: Progress;
-  setProgress: React.Dispatch<React.SetStateAction<Progress>>;
-  notify: (s: string) => void;
-  session: Session | null;
-  setSession: React.Dispatch<React.SetStateAction<Session | null>>;
-};
-const Context = createContext<AppContext>(null!);
-const useForge = () => useContext(Context);
+import { Context, useForge, type Session } from './atlas-context';
+import { Atlas } from './Atlas';
+import { ConceptLesson } from './ConceptLesson';
+import type { Concept } from '../curriculum/concepts';
 const nav = [
-  ['/', 'Dashboard', LayoutDashboard],
-  ['/paths', 'Learning paths', GitBranch],
+  ['/explore', 'Explore', Network],
   ['/practice', 'Practice', Code2],
+  ['/visualizations', 'Experiments', Lightbulb],
   ['/projects', 'Projects', FolderCode],
-  ['/visualizations', 'Visualisations', Network],
-  ['/progress', 'Your progress', ChartIcon],
   ['/settings', 'Settings', Settings2],
 ] as const;
-function ChartIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-    >
-      <path d="M4 20V12M12 20V4M20 20V8" />
-    </svg>
-  );
-}
 function Mark() {
   return (
     <span className="forge-mark">
@@ -139,23 +91,12 @@ function Difficulty({ value }: { value: string }) {
     </span>
   );
 }
-function TrackIcon({ track, small = false }: { track: Track; small?: boolean }) {
-  return (
-    <span
-      className={`track-icon ${small ? 'small' : ''}`}
-      style={{
-        color: track.color,
-        background: `${track.color}12`,
-        borderColor: `${track.color}25`,
-      }}
-    >
-      {track.short === 'Re' ? <span className="react-symbol">⚛</span> : track.short}
-    </span>
-  );
-}
-
 export function App() {
-  const [data, setData] = useState<{ exercises: PublicExercise[]; tracks: Track[] } | null>(null),
+  const [data, setData] = useState<{
+      exercises: PublicExercise[];
+      tracks: Track[];
+      concepts: Concept[];
+    } | null>(null),
     [capabilities, setCaps] = useState<Capability[]>([]),
     [fastapi, setFastapi] = useState(false),
     [error, setError] = useState('');
@@ -192,10 +133,22 @@ export function App() {
   };
   useEffect(load, []);
   useEffect(() => {
+    const refresh = () => {
+      getRuntimes()
+        .then((r) => {
+          setCaps(r.capabilities);
+          setFastapi(r.fastapi);
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('forge:runtimes-checked', refresh);
+    return () => window.removeEventListener('forge:runtimes-checked', refresh);
+  }, []);
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        navigate('/practice');
+        navigate('/explore/javascript');
       }
     };
     window.addEventListener('keydown', onKey);
@@ -254,9 +207,7 @@ export function App() {
     session,
     setSession,
   };
-  const activeNav = nav.find(([url]) =>
-    url === '/' ? location.pathname === '/' : location.pathname.startsWith(url),
-  );
+  const activeNav = nav.find(([url]) => location.pathname.startsWith(url));
   return (
     <Context.Provider value={context}>
       <div className="app-shell">
@@ -267,48 +218,45 @@ export function App() {
               forge<span className="brand-dot">.</span>
             </span>
           </Link>
-          <div className="workspace-switch">
+          <div className="workspace-switch atlas-edition">
             <span className="workspace-avatar">P</span>
             <span>
-              Personal workspace<small>Local · no account needed</small>
+              ENGINEERING ATLAS<small>Volume 02 · Local edition</small>
             </span>
             <ChevronDown size={14} />
           </div>
-          <span className="nav-label">WORKSPACE</span>
+          <span className="nav-label">THE WORKSHOP</span>
           <nav aria-label="Primary navigation">
             {nav.map(([url, label, Icon]) => (
               <NavLink
                 to={url}
-                end={url === '/'}
+                end={false}
                 key={url}
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               >
                 <Icon size={18} />
                 <span>{label}</span>
-                {url === '/practice' && <kbd>⌘ K</kbd>}
+                {url === '/explore' && <kbd aria-hidden="true">⌘ K</kbd>}
               </NavLink>
             ))}
           </nav>
           <div className="sidebar-note">
             <span className="note-symbol">✳</span>
-            <h4>Built through practice.</h4>
+            <h4>Follow the connections.</h4>
             <p>
-              Small steps. Real code.
-              <br />A stronger engineer.
+              Understand. Experiment.
+              <br />
+              Then make it work.
             </p>
             <Link to="/paths">
-              Find your next challenge <ArrowRight size={14} />
+              Explore the atlas <ArrowRight size={14} />
             </Link>
           </div>
           <div className="sidebar-user">
             <span className="user-avatar">{progress.name.slice(0, 1).toUpperCase()}</span>
             <div>
               <strong>{progress.name}</strong>
-              <small>
-                {Math.floor(xp(progress) / 500) + 1 === 1
-                  ? 'Level 1 · Apprentice'
-                  : `Level ${Math.floor(xp(progress) / 500) + 1} · Builder`}
-              </small>
+              <small>Your local learning space</small>
             </div>
             <Link to="/settings" aria-label="Open settings">
               <Settings2 size={17} />
@@ -325,19 +273,17 @@ export function App() {
               >
                 <Menu size={20} />
               </button>
-              <span>Workspace</span>
+              <span>Forge</span>
               <ChevronRight size={13} />
-              <strong>{activeNav?.[1] ?? 'Exercise workspace'}</strong>
+              <strong>
+                {activeNav?.[1] ?? (location.pathname.startsWith('/learn') ? 'Learn' : 'Practice')}
+              </strong>
             </div>
             <div className="topbar-right">
               <span className="local-status">
                 <i /> Local-first learning
               </span>
               <span className="top-divider" />
-              <span className="streak-pill">
-                <Flame size={16} />
-                {streak(progress)} day streak
-              </span>
               <Link to="/settings" className="avatar-small" aria-label="Your profile">
                 {progress.name.slice(0, 1).toUpperCase()}
               </Link>
@@ -345,13 +291,16 @@ export function App() {
           </header>
           <main id="main-content">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/paths" element={<Paths />} />
-              <Route path="/paths/:trackId" element={<PathDetail />} />
+              <Route path="/" element={<Navigate to="/explore/javascript" replace />} />
+              <Route path="/explore" element={<Navigate to="/explore/javascript" replace />} />
+              <Route path="/explore/:trackId" element={<Atlas />} />
+              <Route path="/learn/:id" element={<ConceptLesson />} />
+              <Route path="/paths" element={<Navigate to="/explore/javascript" replace />} />
+              <Route path="/paths/:trackId" element={<PathRedirect />} />
               <Route path="/practice" element={<Practice />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/visualizations" element={<Visualizations />} />
-              <Route path="/progress" element={<ProgressPage />} />
+              <Route path="/progress" element={<Navigate to="/settings" replace />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/exercise/:id" element={<ExerciseWorkspace />} />
               <Route
@@ -359,7 +308,7 @@ export function App() {
                 element={
                   <div className="page">
                     <h1>That page isn’t in the workshop.</h1>
-                    <Link to="/">Back to dashboard</Link>
+                    <Link to="/">Back to the atlas</Link>
                   </div>
                 }
               />
@@ -380,299 +329,6 @@ export function App() {
   );
 }
 
-function Dashboard() {
-  const { exercises, tracks, progress, capabilities } = useForge();
-  const ready = exercises.filter((e) =>
-    capabilities.some((c) => c.language === e.language && c.available),
-  );
-  const next =
-    ready.find((e) => progress.drafts[e.id] && !progress.completed[e.id]) ??
-    ready.find(
-      (e) => !progress.completed[e.id] && e.prerequisites.every((p) => progress.completed[p]),
-    ) ??
-    exercises[0];
-  const solved = Object.keys(progress.completed).length;
-  const attempted = new Set(progress.attempts.map((a) => a.exerciseId)).size;
-  return (
-    <div className="page dashboard">
-      <div className="page-intro">
-        <div>
-          <div className="eyebrow">YOUR ENGINEERING JOURNEY</div>
-          <h1>
-            Keep the fire going<span className="accent">.</span>
-          </h1>
-          <p>Understanding comes from building. Make something click today.</p>
-        </div>
-        <Link to="/practice" className="button secondary">
-          <Code2 size={16} /> Quick practice <ArrowRight size={15} />
-        </Link>
-      </div>
-      <div className="dashboard-columns">
-        <div className="dashboard-primary">
-          <section className="continue-card">
-            <div className="hero-grid" />
-            <div className="continue-content">
-              <div className="hero-kicker">
-                <span className="live-dot" /> YOUR NEXT CHALLENGE
-              </div>
-              <div className="hero-track">
-                {tracks.find((t) => t.id === next.track)?.name} <span>/</span> {next.topic}
-              </div>
-              <h2>{next.title}</h2>
-              <p>{next.problem}</p>
-              <div className="hero-meta">
-                <Difficulty value={next.difficulty} />
-                <span>
-                  <Clock3 size={13} />
-                  {next.minutes} min
-                </span>
-                <span>
-                  <Code2 size={13} />
-                  {next.mode}
-                </span>
-              </div>
-              <Link to={`/exercise/${next.id}`} className="button primary">
-                {progress.drafts[next.id] ? 'Continue learning' : 'Start learning'}{' '}
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-            <div className="hero-art" aria-hidden="true">
-              <div className="orbital o1" />
-              <div className="orbital o2" />
-              <div className="art-core">
-                <Code2 size={42} />
-              </div>
-              <span className="floating-code c1">{'{ }'}</span>
-              <span className="floating-code c2">{'</>'}</span>
-              <span className="art-caption">LEARN. BUILD. REPEAT.</span>
-            </div>
-          </section>
-          <div className="stats-row">
-            <Stat
-              icon={<CheckCircle2 size={18} />}
-              label="Challenges solved"
-              value={solved}
-              note={`${exercises.length} in your workshop`}
-            />
-            <Stat
-              icon={<Zap size={18} />}
-              label="Experience earned"
-              value={xp(progress).toLocaleString()}
-              note="100 XP per first solve"
-            />
-            <Stat
-              icon={<Target size={18} />}
-              label="Challenges attempted"
-              value={attempted}
-              note="Every attempt teaches"
-            />
-          </div>
-          <div className="section-heading">
-            <div>
-              <h2>
-                Your learning paths <span>{tracks.length}</span>
-              </h2>
-              <p>Go deeper in your stack. Explore a new one.</p>
-            </div>
-            <Link to="/paths">
-              View all paths <ArrowRight size={15} />
-            </Link>
-          </div>
-          <div className="track-grid">
-            {tracks.slice(0, 4).map((t) => (
-              <TrackCard key={t.id} track={t} />
-            ))}
-          </div>
-          <div className="section-heading">
-            <div>
-              <h2>Put understanding to work</h2>
-              <p>Small challenges. Production-shaped problems.</p>
-            </div>
-            <Link to="/practice">
-              Browse practice <ArrowRight size={15} />
-            </Link>
-          </div>
-          <div className="exercise-table">
-            {exercises
-              .filter((e) => ['js-lru', 'py-window', 'react-race'].includes(e.id))
-              .map((e) => (
-                <ExerciseRow key={e.id} exercise={e} />
-              ))}
-          </div>
-        </div>
-        <aside className="dashboard-secondary">
-          <section className="today-card">
-            <div className="card-title">
-              <h3>Your momentum</h3>
-              <Flame size={18} className="accent" />
-            </div>
-            <div className="streak-number">
-              {streak(progress)}
-              <span>day streak</span>
-            </div>
-            <p>A little practice goes a long way.</p>
-            <WeekActivity />
-            <div className="thin-divider" />
-            <div className="daily-line">
-              <span>Today’s submissions</span>
-              <strong>
-                {
-                  progress.attempts.filter(
-                    (a) =>
-                      a.action === 'submit' &&
-                      new Date(a.date).toDateString() === new Date().toDateString(),
-                  ).length
-                }
-              </strong>
-            </div>
-            <small className="micro">Progress starts with a real submission.</small>
-          </section>
-          <section className="focus-card">
-            <span className="eyebrow">THE FORGE APPROACH</span>
-            <h3>
-              Don’t just know it.
-              <br />
-              Be able to build it.
-            </h3>
-            <div className="approach-item">
-              <span>01</span>
-              <div>
-                <strong>Learn the why</strong>
-                <p>Build a useful mental model.</p>
-              </div>
-            </div>
-            <div className="approach-item">
-              <span>02</span>
-              <div>
-                <strong>Write the code</strong>
-                <p>Turn understanding into skill.</p>
-              </div>
-            </div>
-            <div className="approach-item">
-              <span>03</span>
-              <div>
-                <strong>Test your thinking</strong>
-                <p>Let real feedback guide you.</p>
-              </div>
-            </div>
-          </section>
-          <Link to="/visualizations" className="lab-card">
-            <div className="lab-mini">
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-            <Badge tone="orange">INTERACTIVE LAB</Badge>
-            <h3>See the algorithm.</h3>
-            <p>Step through the ideas behind the code.</p>
-            <span className="text-link">
-              Explore visualisations <ArrowRight size={15} />
-            </span>
-          </Link>
-          <div className="runtime-mini">
-            <i />
-            {capabilities.filter((c) => c.available).length} of 7 language runtimes ready
-            <Link to="/settings">
-              Details <ArrowRight size={12} />
-            </Link>
-          </div>
-        </aside>
-      </div>
-      <footer className="page-footer">
-        <span>
-          <Mark /> Forged through practice.
-        </span>
-        <span>Your code. Your machine. Your progress.</span>
-      </footer>
-    </div>
-  );
-}
-function Stat({
-  icon,
-  label,
-  value,
-  note,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string | number;
-  note: string;
-}) {
-  return (
-    <div className="stat">
-      <span className="stat-label">
-        {icon}
-        {label}
-      </span>
-      <strong>{value}</strong>
-      <small>{note}</small>
-    </div>
-  );
-}
-function WeekActivity() {
-  const { progress } = useForge();
-  return (
-    <div className="week-activity">
-      {Array.from({ length: 7 }, (_, i) => {
-        const day = new Date();
-        day.setDate(day.getDate() - 6 + i);
-        const active = Object.values(progress.completed).some(
-          (d) => new Date(d).toDateString() === day.toDateString(),
-        );
-        return (
-          <div key={i}>
-            <small>{day.toLocaleDateString('en-GB', { weekday: 'narrow' })}</small>
-            <span
-              className={`${active ? 'filled' : ''} ${i === 6 ? 'today' : ''}`}
-              title={day.toLocaleDateString()}
-            >
-              {active ? <Check size={13} /> : <span />}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-function TrackCard({ track }: { track: Track }) {
-  const { exercises, progress, capabilities } = useForge();
-  const all = exercises.filter((e) => e.track === track.id),
-    done = all.filter((e) => progress.completed[e.id]).length,
-    ready = capabilities.some((c) => all.some((e) => e.language === c.language) && c.available);
-  return (
-    <Link to={`/paths/${track.id}`} className="track-card">
-      <div className="track-card-top">
-        <TrackIcon track={track} />
-        <ChevronRight size={17} />
-      </div>
-      <h3>{track.name}</h3>
-      <p>{track.description}</p>
-      <div className="track-card-meta">
-        <span>{all.length} challenges</span>
-        <span>
-          {done} / {all.length} solved
-        </span>
-      </div>
-      <div className="progress-bar">
-        <span
-          style={{
-            width: `${all.length ? (done / all.length) * 100 : 0}%`,
-            background: track.color,
-          }}
-        />
-      </div>
-      <div className="track-card-footer">
-        <span>
-          <span className={`tiny-dot ${ready ? 'green' : ''}`} />
-          {ready ? 'Runtime ready' : 'Compiler required'}
-        </span>
-        <span>{Math.round((done / all.length) * 100) || 0}%</span>
-      </div>
-    </Link>
-  );
-}
 function ExerciseRow({ exercise: e }: { exercise: PublicExercise }) {
   const { progress, tracks } = useForge();
   return (
@@ -690,125 +346,6 @@ function ExerciseRow({ exercise: e }: { exercise: PublicExercise }) {
       <span className="row-mode">{e.mode}</span>
       <ChevronRight size={16} />
     </Link>
-  );
-}
-function Paths() {
-  const { tracks } = useForge();
-  return (
-    <div className="page">
-      <PageTitle
-        eyebrow="LEARNING PATHS"
-        title="Build a stronger foundation."
-        description="Seven paths. Real implementations. A deeper understanding of your craft."
-      />
-      <div className="track-grid all-tracks">
-        {tracks.map((t) => (
-          <TrackCard key={t.id} track={t} />
-        ))}
-      </div>
-      <div className="info-strip">
-        <BookOpen size={20} />
-        <p>
-          Start anywhere. Prerequisites are recommendations, and each path separates available
-          exercises from future roadmap topics.
-        </p>
-      </div>
-    </div>
-  );
-}
-function PathDetail() {
-  const { trackId } = useParams();
-  const { tracks, exercises, progress, capabilities } = useForge();
-  const [query, setQuery] = useState('');
-  const track = tracks.find((t) => t.id === trackId);
-  if (!track) return <NotFound />;
-  const all = exercises.filter((e) => e.track === trackId),
-    done = all.filter((e) => progress.completed[e.id]).length;
-  return (
-    <div className="page">
-      <Link className="back-link" to="/paths">
-        ← All learning paths
-      </Link>
-      <div className="path-heading">
-        <TrackIcon track={track} />
-        <div>
-          <div className="eyebrow">{track.level}</div>
-          <h1>{track.name}</h1>
-          <p>{track.description}</p>
-        </div>
-      </div>
-      <div className="path-summary">
-        <span>
-          <Code2 size={17} />
-          {all.length} exercises
-        </span>
-        <span>
-          <CheckCircle2 size={17} />
-          {done} completed
-        </span>
-        <span>
-          <Clock3 size={17} />
-          {all.reduce((a, e) => a + e.minutes, 0)} min of practice
-        </span>
-      </div>
-      <div className="path-layout">
-        <div>
-          <div className="section-heading">
-            <h2>The practice roadmap</h2>
-            <SearchBox value={query} onChange={setQuery} />
-          </div>
-          <div className="exercise-table">
-            {all
-              .filter((e) => (e.title + e.topic).toLowerCase().includes(query.toLowerCase()))
-              .map((e, i) => (
-                <div key={e.id}>
-                  <div className="roadmap-number">
-                    {String(i + 1).padStart(2, '0')}
-                    {e.prerequisites.length > 0 && (
-                      <span>
-                        Suggested after:{' '}
-                        {e.prerequisites
-                          .map((p) => exercises.find((x) => x.id === p)?.title)
-                          .join(', ')}
-                      </span>
-                    )}
-                  </div>
-                  <ExerciseRow exercise={e} />
-                </div>
-              ))}
-          </div>
-        </div>
-        <aside>
-          <section className="panel">
-            <h3>What you’ll practise</h3>
-            {track.modules.map((m, i) => (
-              <div className="module-line" key={m}>
-                <span>{String(i + 1).padStart(2, '0')}</span>
-                {m}
-              </div>
-            ))}
-          </section>
-          <section className="panel roadmap-future">
-            <Badge>FUTURE CONTENT</Badge>
-            <h3>Further down the path</h3>
-            <p>Roadmap topics, not playable exercises.</p>
-            {track.future.map((t) => (
-              <div key={t}>
-                <Circle size={11} />
-                {t}
-              </div>
-            ))}
-          </section>
-          {!capabilities.some((c) => c.available && all.some((e) => e.language === c.language)) && (
-            <div className="notice">
-              This compiler is not installed. You can read lessons and edit code; execution needs
-              the toolchain listed in Settings. Native reference solutions have not been executed on
-              this machine.
-            </div>
-          )}
-        </aside>
-      </div>
-    </div>
   );
 }
 function PageTitle({
@@ -946,7 +483,7 @@ function Practice() {
           }}
         >
           <option value="all">All languages</option>
-          {['javascript', 'typescript', 'python', 'react', 'go', 'rust', 'swift'].map((l) => (
+          {['javascript', 'typescript', 'python', 'react', 'go', 'rust'].map((l) => (
             <option value={l} key={l}>
               {l === 'javascript'
                 ? 'JavaScript'
@@ -1111,6 +648,13 @@ function ExerciseWorkspace() {
     [knowledge, setKnowledge] = useState('');
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const conceptId = new URLSearchParams(location.search).get('concept');
+  const { concepts } = useForge();
+  const linkedConcept =
+    concepts.find((c) => c.id === conceptId && c.exercises.includes(id ?? '')) ??
+    concepts.find((c) => c.id === id && c.exercises.includes(id ?? '')) ??
+    concepts.find((c) => c.exercises.includes(id ?? ''));
   useEffect(() => {
     setTab('problem');
     setResult(null);
@@ -1161,9 +705,7 @@ function ExerciseWorkspace() {
       );
       if (r.passed && kind === 'submit')
         notify(
-          completed
-            ? 'All tests passed. Good practice.'
-            : 'Challenge solved. +100 XP. Progress saved.',
+          completed ? 'All tests passed. Good practice.' : 'All tests passed. Completion saved.',
         );
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Execution failed');
@@ -1197,8 +739,15 @@ function ExerciseWorkspace() {
     <div className="exercise-page">
       <div className="exercise-header">
         <div>
-          <Link to={`/paths/${ex.track}`} className="back-link">
-            ← {tracks.find((t) => t.id === ex.track)?.name}
+          <Link
+            to={
+              linkedConcept
+                ? `/learn/${linkedConcept.id}${location.search}`
+                : `/explore/${ex.track}`
+            }
+            className="back-link"
+          >
+            ← {linkedConcept?.title ?? tracks.find((t) => t.id === ex.track)?.name}
           </Link>
           <h1>
             {ex.title}
@@ -1537,8 +1086,8 @@ function ExerciseWorkspace() {
                     : (cap?.install ?? 'Checking local toolchain…')}
                 </p>
                 <small>
-                  {['go', 'rust', 'swift'].includes(ex.language)
-                    ? 'Reference solutions for this toolchain have not been executed on this machine.'
+                  {['go', 'rust'].includes(ex.language)
+                    ? 'Check Settings for compiler discovery and the latest execution self-check.'
                     : 'Start the local execution service to enable grading.'}
                 </small>
               </div>
@@ -1678,181 +1227,17 @@ function ExerciseWorkspace() {
   );
 }
 
-function ProgressPage() {
-  const { progress, tracks, exercises } = useForge();
-  const submits = progress.attempts.filter((a) => a.action === 'submit'),
-    passed = submits.filter((a) => a.passed).length;
-  const achievements = [
-    {
-      title: 'First spark',
-      description: 'Solve your first challenge.',
-      earned: Object.keys(progress.completed).length >= 1,
-      icon: Flame,
-    },
-    {
-      title: 'In the flow',
-      description: 'Solve five different challenges.',
-      earned: Object.keys(progress.completed).length >= 5,
-      icon: Zap,
-    },
-    {
-      title: 'Polyglot',
-      description: 'Solve in three languages.',
-      earned:
-        new Set(exercises.filter((e) => progress.completed[e.id]).map((e) => e.language)).size >= 3,
-      icon: Code2,
-    },
-    {
-      title: 'Persistent builder',
-      description: 'Solve on three consecutive days.',
-      earned: streak(progress) >= 3,
-      icon: Trophy,
-    },
-  ];
-  return (
-    <div className="page">
-      <PageTitle
-        eyebrow="YOUR PROGRESS"
-        title="Every hard-earned insight counts."
-        description="A clear picture of your practice, grounded in actual submission results."
-      />
-      <div className="stats-row progress-stats">
-        <Stat
-          icon={<Trophy size={17} />}
-          label="Challenges solved"
-          value={Object.keys(progress.completed).length}
-          note={`${exercises.length} available`}
-        />
-        <Stat
-          icon={<Zap size={17} />}
-          label="Total experience"
-          value={xp(progress)}
-          note="First solves earn 100 XP"
-        />
-        <Stat
-          icon={<Target size={17} />}
-          label="Submission pass rate"
-          value={submits.length ? `${Math.round((passed / submits.length) * 100)}%` : '—'}
-          note={`${submits.length} real submissions`}
-        />
-        <Stat
-          icon={<Flame size={17} />}
-          label="Current streak"
-          value={streak(progress)}
-          note="Consecutive solve days"
-        />
-      </div>
-      <div className="section-heading">
-        <h2>Path progress</h2>
-      </div>
-      <div className="progress-paths">
-        {tracks.map((t) => {
-          const all = exercises.filter((e) => e.track === t.id),
-            solved = all.filter((e) => progress.completed[e.id]).length;
-          return (
-            <Link key={t.id} to={`/paths/${t.id}`} className="progress-path">
-              <TrackIcon track={t} small />
-              <div>
-                <strong>{t.name}</strong>
-                <div className="progress-bar">
-                  <span style={{ width: `${(solved / all.length) * 100}%`, background: t.color }} />
-                </div>
-              </div>
-              <span>
-                {solved} / {all.length}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-      <div className="section-heading">
-        <div>
-          <h2>Topics to revisit</h2>
-          <p>Coverage estimates from completed exercises, not a measure of expertise.</p>
-        </div>
-      </div>
-      <div className="mastery-grid">
-        {[
-          ...new Set(
-            exercises
-              .filter((e) => progress.attempts.some((a) => a.exerciseId === e.id))
-              .map((e) => e.topic),
-          ),
-        ].map((topic) => {
-          const all = exercises.filter((e) => e.topic === topic),
-            n = all.filter((e) => progress.completed[e.id]).length;
-          return (
-            <div className="panel" key={topic}>
-              <h3>{topic}</h3>
-              <p>
-                {n} of {all.length} exercises solved
-              </p>
-              <Badge tone={n === all.length ? 'green' : 'orange'}>
-                {n === all.length ? 'Reinforce with practice' : 'Needs practice'}
-              </Badge>
-            </div>
-          );
-        })}
-        {progress.attempts.length === 0 && (
-          <div className="panel">
-            <p>Attempt an exercise to see your topic coverage here.</p>
-          </div>
-        )}
-      </div>
-      <div className="section-heading">
-        <h2>Milestones</h2>
-      </div>
-      <div className="achievement-grid">
-        {achievements.map((a) => (
-          <div className={`achievement ${a.earned ? 'earned' : ''}`} key={a.title}>
-            <a.icon size={24} />
-            <h3>{a.title}</h3>
-            <p>{a.description}</p>
-            <Badge tone={a.earned ? 'green' : 'neutral'}>
-              {a.earned ? 'Earned' : 'In progress'}
-            </Badge>
-          </div>
-        ))}
-      </div>
-      <div className="section-heading">
-        <h2>Attempt history</h2>
-      </div>
-      <div className="exercise-table">
-        {progress.attempts.slice(0, 30).map((a) => (
-          <Link className="attempt-row" key={a.id} to={`/exercise/${a.exerciseId}`}>
-            <span className={a.passed ? 'success' : 'accent'}>
-              {a.passed ? <CheckCircle2 size={17} /> : <RotateCcw size={16} />}
-            </span>
-            <div>
-              <strong>{exercises.find((e) => e.id === a.exerciseId)?.title ?? a.exerciseId}</strong>
-              <small>{new Date(a.date).toLocaleString('en-GB')}</small>
-            </div>
-            <Badge>{a.action}</Badge>
-            <span>
-              {a.passedTests}/{a.totalTests} tests
-            </span>
-            <span>{a.duration}ms</span>
-          </Link>
-        ))}
-        {!progress.attempts.length && (
-          <div className="empty-state">
-            <Terminal size={27} />
-            <h3>Your workshop is ready.</h3>
-            <p>Run your first challenge to start your learning history.</p>
-            <Link className="button primary" to="/paths">
-              Choose a learning path <ArrowRight size={15} />
-            </Link>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 function SettingsPage() {
   const { progress, setProgress, capabilities, fastapi, notify } = useForge();
   const input = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Progress | null>(null),
     [reset, setReset] = useState(false);
+  const [checkingRuntimes, setCheckingRuntimes] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<{
+    capabilities: Capability[];
+    fastapi: boolean;
+  } | null>(null);
+  const runtimeCaps = diagnostics?.capabilities ?? capabilities;
   const exportData = () => {
     const blob = new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1955,8 +1340,25 @@ function SettingsPage() {
       </section>
       <section className="panel settings-section">
         <div className="card-title">
-          <h2>Execution runtimes</h2>
-          <Badge>LOCAL TOOLCHAINS</Badge>
+          <h2>Runtime Diagnostics</h2>
+          <button
+            className="button secondary"
+            disabled={checkingRuntimes}
+            onClick={async () => {
+              setCheckingRuntimes(true);
+              try {
+                const result = await checkRuntimes();
+                setDiagnostics(result);
+                window.dispatchEvent(new Event('forge:runtimes-checked'));
+              } catch (e) {
+                notify(e instanceof Error ? e.message : 'Self-check failed');
+              } finally {
+                setCheckingRuntimes(false);
+              }
+            }}
+          >
+            {checkingRuntimes ? 'Running self-check?' : 'Run self-check'}
+          </button>
         </div>
         <p>
           JavaScript runs in a separate Node process and VM context. TypeScript uses the real
@@ -1964,7 +1366,7 @@ function SettingsPage() {
           components in jsdom.
         </p>
         <div className="runtime-list">
-          {capabilities.map((c) => (
+          {runtimeCaps.map((c) => (
             <div className="runtime-item" key={c.language}>
               <div>
                 <strong>
@@ -1973,10 +1375,12 @@ function SettingsPage() {
                     : c.language[0].toUpperCase() + c.language.slice(1)}
                 </strong>
                 <Badge tone={c.available ? 'green' : 'orange'}>
-                  {c.available ? 'Available' : 'Not installed'}
+                  {c.available ? 'Self-check passed' : 'Unavailable'}
                 </Badge>
               </div>
               <code>{c.version}</code>
+              {c.diagnostics && <pre className="runtime-diagnostic">{c.diagnostics}</pre>}
+              {c.checkedAt && <small>Checked: {new Date(c.checkedAt).toLocaleString()}</small>}
               <div className="runtime-flags">
                 <span>Compile: {c.compilation && c.available ? 'yes' : 'no'}</span>
                 <span>Execute: {c.execution ? 'yes' : 'no'}</span>
@@ -1988,7 +1392,10 @@ function SettingsPage() {
           ))}
         </div>
         <div className="notice">
-          <strong>FastAPI HTTP testing: {fastapi ? 'available' : 'dependencies missing'}</strong>
+          <strong>
+            FastAPI HTTP testing:{' '}
+            {(diagnostics?.fastapi ?? fastapi) ? 'self-check passed' : 'self-check failed'}
+          </strong>
           {!fastapi && <code>python -m pip install -r requirements.txt</code>}
         </div>
         <div className="security-note">
@@ -2045,4 +1452,9 @@ function SettingsPage() {
       </section>
     </div>
   );
+}
+
+function PathRedirect() {
+  const { trackId } = useParams();
+  return <Navigate to={`/explore/${trackId}`} replace />;
 }

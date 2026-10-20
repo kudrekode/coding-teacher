@@ -1,13 +1,22 @@
-import { exercises, validateCurriculum } from '../curriculum/index';
+import { concepts, exercises, validateCurriculum } from '../curriculum/index';
 import { capabilities, runExercise } from './runtime';
 validateCurriculum();
 let failed = 0,
   verified = 0,
   skipped = 0;
 const caps = await capabilities();
+console.log(
+  JSON.stringify({
+    concepts: concepts.length,
+    lessons: concepts.filter((c) => c.status === 'lesson').length,
+    guides: concepts.filter((c) => c.status === 'guide').length,
+    planned: concepts.filter((c) => c.status === 'planned').length,
+  }),
+);
 for (const e of exercises) {
   if (!caps.find((c) => c.language === e.language)?.available) {
-    console.log(`UNAVAILABLE ${e.id}: compiler missing; reference not executed`);
+    const cap = caps.find((c) => c.language === e.language)!;
+    console.log(`UNAVAILABLE ${e.id}: ${cap.version}; ${cap.diagnostics}; reference not executed`);
     skipped++;
     continue;
   }
