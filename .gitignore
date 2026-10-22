@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.forge-runtime/
+*.log
+__pycache__/
+artifacts/
+.venv/
